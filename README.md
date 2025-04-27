@@ -37,7 +37,9 @@ The SLA check runs:
 
 ## Deployment to Render.com
 
-### Backend API Deployment
+### Single Server Deployment (Backend + Frontend)
+
+The application is configured to serve both the backend API and frontend from a single server:
 
 1. Create a new account on [Render.com](https://render.com) if you don't have one.
 
@@ -50,7 +52,18 @@ The SLA check runs:
 
 3. Deploy:
    - Select the repository
-   - Render will automatically deploy the backend service
+   - Render will automatically:
+     - Install all dependencies for both backend and frontend
+     - Build the React frontend
+     - Start the backend server which will serve both the API and frontend
+
+### How It Works
+
+In production mode (`NODE_ENV=production`):
+
+- The Express server serves the static frontend files from the `frontend/build` directory
+- All API requests to `/api/*` routes are handled by the backend
+- All other requests are routed to the React frontend's index.html (for client-side routing)
 
 ### Environment Variables
 

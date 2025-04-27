@@ -6,7 +6,7 @@ require("dotenv").config();
 
 // Import the store SLA check functionality
 const { performStoreSlaCheck } = require("./cron/storeSlaCheck");
-// Import the cron jobs initializer (will be used in the future)
+// Import the cron jobs initializer
 const { initCronJobs } = require("./cron");
 
 // Initialize express app
@@ -14,10 +14,17 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+if (process.env.NODE_ENV === "production") {
+  // In production, no need for CORS since frontend and backend are served from the same origin
+  app.use(morgan("combined"));
+} else {
+  // In development, use CORS to allow frontend dev server to access the backend
+  app.use(cors());
+  app.use(morgan("dev"));
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan("dev"));
 
 // Sample data
 const data = {
@@ -44,7 +51,7 @@ const data = {
   ],
 };
 
-// Routes
+// API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "API is running" });
 });
@@ -76,7 +83,6 @@ app.post("/api/tasks", (req, res) => {
 });
 
 // Internal SLA check endpoint
-// TODO: Move this functionality to a cron job in the future
 app.get("/api/internal_store_sla_check", async (req, res) => {
   try {
     console.log("Internal store SLA check triggered via API");
@@ -113,10 +119,26 @@ app.get("/api/internal_store_sla_check", async (req, res) => {
   }
 });
 
+// Serve static files from the React frontend app
+if (process.env.NODE_ENV === "production") {
+  console.log("Serving frontend in production mode");
+  // Serve any static files
+  app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+  // Handle React routing, return all requests to React app
+  app.get("*", function (req, res, next) {
+    // Skip API routes
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
+  });
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 
-  // Initialize cron jobs (placeholder for future implementation)
+  // Initialize cron jobs
   initCronJobs();
 });

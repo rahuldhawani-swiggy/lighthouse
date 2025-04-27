@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: lighthouse-backend
+    name: lighthouse
     env: node
     region: singapore # Choose a region close to your users
     plan: free # Using the free tier
-    buildCommand: cd backend && npm install
+    buildCommand: npm run install-all && cd frontend && npm run build
     startCommand: cd backend && node server.js
     healthCheckPath: /api/health
     envVars:
