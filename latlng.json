@@ -1,0 +1,46 @@
+[
+  { "lat": 13.0582016, "lng": 77.6484735 },
+  { "lat": 12.9286222, "lng": 77.6904876 },
+  {
+    "lat": 13.148247850092151,
+    "lng": 77.63861848382498,
+    "name": "Embassy Boulevard",
+    "area": "Devanahalli"
+  },
+  {
+    "lat": 12.882574861349958,
+    "lng": 77.47112527261568,
+    "name": "Provident Sunworth",
+    "area": "Mysore Road, Kengeri"
+  },
+  {
+    "lat": 13.16,
+    "lng": 77.42,
+    "name": "Prestige Golfshire",
+    "area": "Nandi Hills, Devanahalli"
+  },
+  {
+    "lat": 12.8615,
+    "lng": 77.5442,
+    "name": "Mantri Royale",
+    "area": "Anjanapura"
+  },
+  {
+    "lat": 12.881972,
+    "lng": 77.642962,
+    "name": "Sobha Indraprastha",
+    "area": "Rajajinagar, Old Mysore Road"
+  },
+  {
+    "lat": 13.192876,
+    "lng": 77.657365,
+    "name": "Kst Gnana Kuteera",
+    "area": "IVC Road, Devanahalli"
+  },
+  {
+    "lat": 12.9428,
+    "lng": 77.5997,
+    "name": "Aryan Fountain Square",
+    "area": "Sarjapur"
+  }
+]

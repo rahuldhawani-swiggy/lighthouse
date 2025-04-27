@@ -1,0 +1,43 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+
+.logo {
+  height: 32px;
+  margin: 16px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.site-layout .site-layout-background {
+  background: #fff;
+}
+
+.site-card {
+  margin-bottom: 16px;
+}
+
+.status-badge-completed {
+  background-color: #52c41a;
+}
+
+.status-badge-pending {
+  background-color: #faad14;
+}
+
+.status-badge-in-progress {
+  background-color: #1890ff;
+}
+
+.ant-statistic-title {
+  font-size: 14px;
+}

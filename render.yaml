@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: lighthouse-backend
+    env: node
+    region: singapore # Choose a region close to your users
+    plan: free # Using the free tier
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+    autoDeploy: true
