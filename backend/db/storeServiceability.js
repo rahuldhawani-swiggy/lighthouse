@@ -38,9 +38,6 @@ const saveServiceabilityResults = async (results) => {
       };
     });
 
-    console.log("dbRecords");
-    console.log(dbRecords);
-
     // Insert into Supabase
     const { data, error } = await supabase
       .from("store_serviceablity")

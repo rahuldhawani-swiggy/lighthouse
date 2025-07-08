@@ -18,6 +18,7 @@ import {
   ClearOutlined,
 } from "@ant-design/icons";
 import { format } from "date-fns";
+import { getApiUrl, API_ENDPOINTS } from "../utils/apiConfig";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -58,7 +59,7 @@ const ItemAvailability = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/item-availability");
+      const response = await fetch(getApiUrl(API_ENDPOINTS.ITEM_AVAILABILITY));
 
       if (!response.ok) {
         throw new Error("Failed to fetch data");

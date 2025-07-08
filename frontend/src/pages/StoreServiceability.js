@@ -14,6 +14,7 @@ import {
 } from "antd";
 import { CloseCircleTwoTone, ClearOutlined } from "@ant-design/icons";
 import { format } from "date-fns";
+import { getApiUrl, API_ENDPOINTS } from "../utils/apiConfig";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -51,7 +52,9 @@ const StoreServiceability = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/store-serviceability");
+      const response = await fetch(
+        getApiUrl(API_ENDPOINTS.STORE_SERVICEABILITY)
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch data");
