@@ -6,9 +6,11 @@ import {
   UnorderedListOutlined,
   UserOutlined,
   SettingOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
+import StoreServiceability from "./pages/StoreServiceability";
 
 const { Header, Content, Footer, Sider } = Layout;
 
@@ -48,10 +50,13 @@ function App() {
             <Menu.Item key="2" icon={<UnorderedListOutlined />}>
               <Link to="/tasks">Tasks</Link>
             </Menu.Item>
-            <Menu.Item key="3" icon={<UserOutlined />}>
+            <Menu.Item key="3" icon={<CheckCircleOutlined />}>
+              <Link to="/store-serviceability">Store Serviceability</Link>
+            </Menu.Item>
+            <Menu.Item key="4" icon={<UserOutlined />}>
               <Link to="/users">Users</Link>
             </Menu.Item>
-            <Menu.Item key="4" icon={<SettingOutlined />}>
+            <Menu.Item key="5" icon={<SettingOutlined />}>
               <Link to="/settings">Settings</Link>
             </Menu.Item>
           </Menu>
@@ -71,6 +76,10 @@ function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/tasks" element={<Tasks />} />
+                <Route
+                  path="/store-serviceability"
+                  element={<StoreServiceability />}
+                />
                 <Route
                   path="/users"
                   element={<div>Users Page (Coming Soon)</div>}

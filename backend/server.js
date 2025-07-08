@@ -6,8 +6,21 @@ require("dotenv").config();
 
 // Import the store SLA check functionality
 const { performStoreSlaCheck } = require("./cron/storeSlaCheck");
+const {
+  performItemAvailabilityCheck,
+} = require("./cron/itemAvailabilityCheck");
 // Import the cron jobs initializer
 const { initCronJobs } = require("./cron");
+
+// Import database operations
+const {
+  getLatestServiceability,
+  getLocationHistory,
+} = require("./db/storeServiceability");
+const {
+  getItemAvailabilityResults,
+  getItemAvailabilityStats,
+} = require("./db/itemAvailability");
 
 // Initialize express app
 const app = express();
@@ -114,6 +127,193 @@ app.get("/api/internal_store_sla_check", async (req, res) => {
     console.error("Error during SLA check:", error);
     res.status(500).json({
       error: "Failed to perform SLA check",
+      message: error.message,
+    });
+  }
+});
+
+// Get all latest store serviceability records
+app.get("/api/store-serviceability", async (req, res) => {
+  try {
+    const result = await getLatestServiceability();
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: "Failed to fetch serviceability data",
+        message: result.error,
+      });
+    }
+
+    res.json({
+      success: true,
+      count: result.data.length,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("Error fetching serviceability data:", error);
+    res.status(500).json({
+      error: "Failed to fetch serviceability data",
+      message: error.message,
+    });
+  }
+});
+
+// Get serviceability history for a specific location
+app.get("/api/store-serviceability/:locationName", async (req, res) => {
+  try {
+    const { locationName } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const result = await getLocationHistory(locationName, limit);
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: "Failed to fetch location history",
+        message: result.error,
+      });
+    }
+
+    res.json({
+      success: true,
+      location: locationName,
+      count: result.data.length,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("Error fetching location history:", error);
+    res.status(500).json({
+      error: "Failed to fetch location history",
+      message: error.message,
+    });
+  }
+});
+
+// Item Availability Check endpoint
+app.get("/api/item-availability-check", async (req, res) => {
+  try {
+    console.log("Item availability check triggered via API");
+
+    // Get parameters from query
+    const { itemIds, testMode, full } = req.query;
+
+    // Parse itemIds if provided
+    let itemIdsArray = [];
+    if (itemIds) {
+      itemIdsArray = itemIds.split(",").map((id) => id.trim());
+    }
+
+    // Call the item availability check function
+    const result = await performItemAvailabilityCheck({
+      itemIds: itemIdsArray.length > 0 ? itemIdsArray : undefined,
+      testMode: testMode === "true",
+      returnFullData: full === "true",
+      source: "api_request",
+      requestTime: new Date().toISOString(),
+      params: req.query,
+    });
+
+    // Format the response
+    const formattedResponse = {
+      success: result.success,
+      message: result.message,
+      timestamp: result.timestamp,
+      duration: result.duration,
+      summary: result.summary,
+      results: result.results,
+      errors: result.errors,
+    };
+
+    res.json(formattedResponse);
+  } catch (error) {
+    console.error("Error during item availability check:", error);
+    res.status(500).json({
+      error: "Failed to perform item availability check",
+      message: error.message,
+    });
+  }
+});
+
+// Get item availability results with filtering
+app.get("/api/item-availability", async (req, res) => {
+  try {
+    const {
+      storeId,
+      itemId,
+      itemName,
+      spotName,
+      spotArea,
+      spotCity,
+      available,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const options = {
+      filters: {
+        storeId,
+        itemId,
+        itemName,
+        spotName,
+        spotArea,
+        spotCity,
+        available: available !== undefined ? available === "true" : undefined,
+        dateFrom,
+        dateTo,
+      },
+      page: page ? parseInt(page) : undefined,
+      pageSize: pageSize ? parseInt(pageSize) : undefined,
+      sortBy,
+      sortOrder,
+    };
+
+    const result = await getItemAvailabilityResults(options);
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: "Failed to fetch item availability results",
+        message: result.error,
+      });
+    }
+
+    res.json({
+      success: true,
+      count: result.data.length,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    console.error("Error fetching item availability results:", error);
+    res.status(500).json({
+      error: "Failed to fetch item availability results",
+      message: error.message,
+    });
+  }
+});
+
+// Get item availability statistics
+app.get("/api/item-availability-stats", async (req, res) => {
+  try {
+    const result = await getItemAvailabilityStats();
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: "Failed to fetch item availability statistics",
+        message: result.error,
+      });
+    }
+
+    res.json({
+      success: true,
+      stats: result.stats,
+    });
+  } catch (error) {
+    console.error("Error fetching item availability statistics:", error);
+    res.status(500).json({
+      error: "Failed to fetch item availability statistics",
       message: error.message,
     });
   }

@@ -10,4 +10,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: SUPABASE_URL
+        sync: false # This requires manual setting in Render dashboard
+      - key: SUPABASE_KEY
+        sync: false # This requires manual setting in Render dashboard
     autoDeploy: true

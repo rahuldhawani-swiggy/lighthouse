@@ -8,6 +8,7 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
+const { saveServiceabilityResults } = require("../db/storeServiceability");
 
 /**
  * Reads the location data from the store_sla.csv file
@@ -22,9 +23,11 @@ const getLocationData = () => {
       fs.createReadStream(filePath)
         .pipe(csv())
         .on("data", (data) => {
-          // Format the data to match our expected structure
+          // Format the data to match our expected structure but keep components separate
           results.push({
-            name: `${data["Society Name"]}, ${data["Area"]}, ${data["City"]}`,
+            societyName: data["Society Name"],
+            area: data["Area"],
+            city: data["City"],
             lat: data["Lat"],
             lng: data["Lng"],
           });
@@ -55,26 +58,20 @@ const extractSlaData = (response) => {
     // Example response: {"data": {"storeId": "762611", "slaString": "16 Mins", "serviceability": "SERVICEABLE", "storeDetails": {"description": "Store Name", "locality": "Location"}}}
 
     if (response?.data) {
-      // Get store name from storeDetails if available, otherwise use default
-      let storeName = "Instamart";
+      // Default values
+      let storeDescription = "";
+      let storeLocality = "";
 
       if (response.data.storeDetails) {
-        const description = response.data.storeDetails.description || "";
-        const locality = response.data.storeDetails.locality || "";
-
-        if (description && locality) {
-          storeName = `${description} - ${locality}`;
-        } else if (description) {
-          storeName = description;
-        } else if (locality) {
-          storeName = locality;
-        }
+        storeDescription = response.data.storeDetails.description || "";
+        storeLocality = response.data.storeDetails.locality || "";
       }
 
       // Handle potentially undefined values with fallbacks
       return {
         storeId: response.data.storeId || "N/A",
-        name: storeName,
+        storeDescription: storeDescription,
+        storeLocality: storeLocality,
         slaString:
           response.data.slaString !== undefined
             ? response.data.slaString
@@ -94,7 +91,8 @@ const extractSlaData = (response) => {
 
     return {
       storeId: "N/A",
-      name: "N/A",
+      storeDescription: "N/A",
+      storeLocality: "N/A",
       slaString: "N/A",
       serviceability: "N/A",
     };
@@ -102,7 +100,8 @@ const extractSlaData = (response) => {
     console.error("Error extracting SLA data:", error);
     return {
       storeId: "N/A",
-      name: "N/A",
+      storeDescription: "N/A",
+      storeLocality: "N/A",
       slaString: "N/A",
       serviceability: "N/A",
       error: "Failed to extract SLA data",
@@ -161,12 +160,14 @@ const callSwiggyApi = async (location) => {
 
       // If we couldn't extract the data from the real response, use mock data
       if (slaData.storeId === "N/A" && slaData.slaString === "N/A") {
-        console.log(`Using mock data for location: ${location.name}`);
+        console.log(
+          `Using mock data for location: ${location.societyName}, ${location.area}, ${location.city}`
+        );
         slaData = extractSlaData(mockApiResponse);
       }
     } catch (err) {
       console.log(
-        `Error extracting real data, using mock data for location: ${location.name}`
+        `Error extracting real data, using mock data for location: ${location.societyName}, ${location.area}, ${location.city}`
       );
       slaData = extractSlaData(mockApiResponse);
     }
@@ -182,7 +183,9 @@ const callSwiggyApi = async (location) => {
   } catch (error) {
     console.error(
       `Error calling Swiggy API for location ${
-        location.name || JSON.stringify(location)
+        location.societyName
+          ? `${location.societyName}, ${location.area}, ${location.city}`
+          : JSON.stringify(location)
       }:`,
       error.message
     );
@@ -245,23 +248,44 @@ const performStoreSlaCheck = async (options = {}) => {
     // Create a simplified version of the results with just the key data
     const simplifiedResults = results.map((result) => ({
       locationMeta: {
-        name: result.location.name,
+        societyName: result.location.societyName,
+        area: result.location.area,
+        city: result.location.city,
         coordinates: {
           lat: result.location.lat,
           lng: result.location.lng,
         },
       },
       storeId: result.slaData.storeId,
-      storeName: result.slaData.name,
+      storeDescription: result.slaData.storeDescription,
+      storeLocality: result.slaData.storeLocality,
       sla: result.slaData.slaString,
       serviceability: result.slaData.serviceability,
       timestamp: result.timestamp,
     }));
 
+    console.log(simplifiedResults);
+
+    // Save results to Supabase if not in test mode
+    if (!options.testMode) {
+      try {
+        const saveResult = await saveServiceabilityResults(simplifiedResults);
+        console.log(
+          "Database save result:",
+          saveResult.success ? "Success" : "Failed"
+        );
+      } catch (dbError) {
+        console.error("Error saving to database:", dbError);
+        // Continue execution even if database save fails
+      }
+    }
+
     // Create a simplified version of the errors
     const simplifiedErrors = errors.map((error) => ({
       locationMeta: {
-        name: error.location.name,
+        societyName: error.location.societyName,
+        area: error.location.area,
+        city: error.location.city,
         coordinates: {
           lat: error.location.lat,
           lng: error.location.lng,
