@@ -31,6 +31,7 @@ const saveItemAvailabilityResults = async (results) => {
         results.map((result) => ({
           store_id: result.storeId,
           item_id: result.itemId,
+          item_internal_name: result.itemInternalName || null,
           item_name: result.itemName || null,
           store_locality: result.storeLocality || null,
           store_description: result.storeDescription || null,

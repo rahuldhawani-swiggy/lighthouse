@@ -39,60 +39,9 @@ if (process.env.NODE_ENV === "production") {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Sample data
-const data = {
-  stats: {
-    users: 1250,
-    tasks: 3862,
-    completionRate: 68,
-  },
-  latestTasks: [
-    {
-      id: 1,
-      title: "Dashboard redesign",
-      status: "in-progress",
-      priority: "high",
-    },
-    {
-      id: 2,
-      title: "API integration",
-      status: "completed",
-      priority: "medium",
-    },
-    { id: 3, title: "Mobile optimization", status: "pending", priority: "low" },
-    { id: 4, title: "User testing", status: "in-progress", priority: "high" },
-  ],
-};
-
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "API is running" });
-});
-
-app.get("/api/stats", (req, res) => {
-  res.json(data.stats);
-});
-
-app.get("/api/tasks", (req, res) => {
-  res.json(data.latestTasks);
-});
-
-app.post("/api/tasks", (req, res) => {
-  const { title, priority } = req.body;
-
-  if (!title) {
-    return res.status(400).json({ error: "Title is required" });
-  }
-
-  const newTask = {
-    id: data.latestTasks.length + 1,
-    title,
-    status: "pending",
-    priority: priority || "medium",
-  };
-
-  data.latestTasks.push(newTask);
-  res.status(201).json(newTask);
 });
 
 // Internal SLA check endpoint

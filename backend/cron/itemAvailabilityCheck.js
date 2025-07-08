@@ -6,13 +6,14 @@
 
 const axios = require("axios");
 const { saveItemAvailabilityResults } = require("../db/itemAvailability");
-const { getLatestServiceability } = require("../db/storeServiceability");
+const { getLocationData, callSwiggyApi } = require("../utils/swiggyApi");
+const { readItemListCsv, getProductIds } = require("../utils/itemList");
 
 /**
  * Configuration for item availability checking
  */
 const config = {
-  defaultItems: ["123456", "789012"], // Example item IDs for testing
+  defaultItems: ["A8S21QP2A1", "RC72JAN6NK", "61WDNU5G4B", "D7RY5RSB1Y"], // Fallback item IDs
   batchSize: 50, // Number of stores to process at once
   apiTimeout: 10000, // API timeout in milliseconds
   retryAttempts: 3, // Number of retry attempts
@@ -20,38 +21,56 @@ const config = {
 };
 
 /**
- * Fetches store serviceability data from database
+ * Gets the list of items to check from CSV file
+ * @returns {Promise<Array>} Promise that resolves to array of item objects with internal names
+ */
+const getItemsToCheck = async () => {
+  try {
+    return await readItemListCsv();
+  } catch (error) {
+    console.error("Error reading item list from CSV, using fallback:", error);
+    return config.defaultItems.map((itemId) => ({
+      itemInternalName: `item_${itemId}`,
+      productId: itemId,
+    }));
+  }
+};
+
+/**
+ * Fetches fresh store serviceability data by reading CSV and calling Swiggy API
  * @returns {Promise<Array>} Promise that resolves to an array of store objects
  */
 const getStoreServiceabilityData = async () => {
   try {
-    console.log("Fetching store serviceability data from database...");
+    console.log("Fetching fresh store serviceability data from CSV and API...");
 
-    // Get all serviceable stores from the database
-    const storeData = await getLatestServiceability();
+    // Get location data from CSV
+    const locations = await getLocationData();
 
-    if (!storeData || !storeData.data || storeData.data.length === 0) {
-      throw new Error("No serviceable stores found in database");
-    }
+    // Call Swiggy API for each location to get fresh serviceability data
+    const apiPromises = locations.map((location) => callSwiggyApi(location));
+    const apiResults = await Promise.all(apiPromises);
 
-    // Transform the data to match our expected structure
-    const stores = storeData.data
-      .filter((store) => store.serviceability === "SERVICEABLE")
-      .map((store) => ({
-        storeId: store.store_id,
-        spotName: store.spot_name,
-        spotArea: store.spot_area,
-        spotCity: store.spot_city,
+    // Transform API results into the expected store format
+    const stores = apiResults
+      .filter((result) => result.slaData.serviceability === "SERVICEABLE")
+      .map((result) => ({
+        storeId: result.slaData.storeId,
+        spotName: result.location.societyName,
+        spotArea: result.location.area,
+        spotCity: result.location.city,
         coordinates: {
-          lat: store.spot_lat,
-          lng: store.spot_lng,
+          lat: result.location.lat,
+          lng: result.location.lng,
         },
-        serviceability: store.serviceability,
-        sla: store.sla,
-        lastChecked: store.created_at,
+        serviceability: result.slaData.serviceability,
+        sla: result.slaData.slaString,
+        lastChecked: result.timestamp,
       }));
 
-    console.log(`Loaded ${stores.length} serviceable stores from database`);
+    console.log(
+      `Loaded ${stores.length} serviceable stores from fresh API data`
+    );
     return stores;
   } catch (error) {
     console.error("Error fetching store serviceability data:", error);
@@ -63,53 +82,60 @@ const getStoreServiceabilityData = async () => {
  * Extracts the relevant item availability data from the API response
  * @param {Object} response - The API response data
  * @param {string} itemId - The item ID that was checked
+ * @param {string} itemInternalName - The internal name for the item
  * @returns {Object} Object with the extracted item availability information
  */
-const extractItemAvailabilityData = (response, itemId) => {
+const extractItemAvailabilityData = (
+  response,
+  itemId,
+  itemInternalName = null
+) => {
   try {
-    // Extract availability data from the API response
-    // The response structure will be determined based on actual API responses
+    // Extract availability data from the actual Swiggy API response structure
+    if (response?.data?.item) {
+      const item = response.data.item;
+      const storeDetails = response.data.storeDetails;
 
-    if (response?.data) {
-      // Try to extract availability information from the response
-      // This will need to be updated based on actual API response structure
-      let available = null;
-      let itemName = null;
-      let storeId = null;
-      let storeLocality = null;
-      let storeDescription = null;
+      // Extract availability information - use inStockAndSlotAvailable as primary indicator
+      const available = item.inStockAndSlotAvailable;
 
-      // TODO: Update this based on actual API response structure
-      // For now, we'll try to extract basic availability info
-      if (response.data.available !== undefined) {
-        available = response.data.available;
-      } else if (response.data.availability !== undefined) {
-        available = response.data.availability === "AVAILABLE";
-      }
+      // Extract item information
+      const itemName =
+        item.display_name || item.product_name_without_brand || null;
+      const brand = item.brand || null;
+      const category = item.category || item.super_category || null;
 
-      if (response.data.itemName) {
-        itemName = response.data.itemName;
-      }
+      // Extract store information
+      const storeId = storeDetails?.id || null;
+      const storeLocality = storeDetails?.locality || null;
+      const storeDescription = storeDetails?.name || null;
 
-      if (response.data.storeId) {
-        storeId = response.data.storeId;
-      }
-
-      if (response.data.storeLocality) {
-        storeLocality = response.data.storeLocality;
-      }
-
-      if (response.data.storeDescription) {
-        storeDescription = response.data.storeDescription;
+      // Extract variation details if available
+      let variationsInfo = null;
+      if (item.variations && Array.isArray(item.variations)) {
+        variationsInfo = item.variations.map((variation) => ({
+          id: variation.id,
+          quantity: variation.quantity,
+          inStock: variation.inventory?.in_stock || false,
+          slotAvailable: variation.sku_slot_info?.is_avail || false,
+          price: variation.price?.offer_price || variation.price?.store_price,
+          maxAllowed: variation.max_allowed_quantity,
+        }));
       }
 
       return {
         itemId: itemId,
+        itemInternalName: itemInternalName,
         available: available,
         itemName: itemName,
+        brand: brand,
+        category: category,
         storeId: storeId,
         storeLocality: storeLocality,
         storeDescription: storeDescription,
+        variationsCount: variationsInfo ? variationsInfo.length : 0,
+        variationsInfo: variationsInfo,
+        responseStatus: "SUCCESS",
       };
     }
 
@@ -121,21 +147,33 @@ const extractItemAvailabilityData = (response, itemId) => {
 
     return {
       itemId: itemId,
+      itemInternalName: itemInternalName,
       available: null,
       itemName: null,
+      brand: null,
+      category: null,
       storeId: null,
       storeLocality: null,
       storeDescription: null,
+      variationsCount: 0,
+      variationsInfo: null,
+      responseStatus: "NO_DATA",
     };
   } catch (error) {
     console.error("Error extracting item availability data:", error);
     return {
       itemId: itemId,
+      itemInternalName: itemInternalName,
       available: null,
       itemName: null,
+      brand: null,
+      category: null,
       storeId: null,
       storeLocality: null,
       storeDescription: null,
+      variationsCount: 0,
+      variationsInfo: null,
+      responseStatus: "ERROR",
       error: "Failed to extract availability data",
     };
   }
@@ -144,10 +182,10 @@ const extractItemAvailabilityData = (response, itemId) => {
 /**
  * Calls the Item Availability API for a specific store and item
  * @param {Object} store - The store object with store details
- * @param {string} itemId - The item ID to check
+ * @param {Object} item - The item object with productId and itemInternalName
  * @returns {Promise<Object>} The API response
  */
-const checkItemAvailability = async (store, itemId) => {
+const checkItemAvailability = async (store, item) => {
   try {
     // Replace the lat and lng placeholders in the Cookie header (similar to SLA check)
     const cookieString =
@@ -160,7 +198,7 @@ const checkItemAvailability = async (store, itemId) => {
     // Set up the request config using the provided URL structure
     const apiConfig = {
       method: "get",
-      url: `https://www.swiggy.com/api/instamart/item/${itemId}/widgets?storeId=${store.storeId}&primaryStoreId=${store.storeId}`,
+      url: `https://www.swiggy.com/api/instamart/item/${item.productId}/widgets?storeId=${store.storeId}&primaryStoreId=${store.storeId}`,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -174,11 +212,16 @@ const checkItemAvailability = async (store, itemId) => {
     const response = await axios(apiConfig);
 
     // Extract availability data from the response
-    const availabilityData = extractItemAvailabilityData(response.data, itemId);
+    const availabilityData = extractItemAvailabilityData(
+      response.data,
+      item.productId,
+      item.itemInternalName
+    );
 
     return {
       store: store,
-      itemId: itemId,
+      itemId: item.productId,
+      itemInternalName: item.itemInternalName,
       status: response.status,
       statusText: response.statusText,
       availabilityData: availabilityData,
@@ -187,15 +230,16 @@ const checkItemAvailability = async (store, itemId) => {
     };
   } catch (error) {
     console.error(
-      `Error checking item availability for store ${store.storeId}, item ${itemId}:`,
+      `Error checking item availability for store ${store.storeId}, item ${item.productId}:`,
       error.message
     );
 
     // If API call fails, provide fallback mock data for testing purposes
     const mockAvailabilityData = {
-      itemId: itemId,
+      itemId: item.productId,
+      itemInternalName: item.itemInternalName,
       available: Math.random() > 0.3, // 70% chance of being available
-      itemName: `Mock Item ${itemId}`,
+      itemName: `Mock Item ${item.productId}`,
       storeId: store.storeId,
       storeLocality: store.spotArea,
       storeDescription: `Mock Store ${store.storeId}`,
@@ -203,7 +247,8 @@ const checkItemAvailability = async (store, itemId) => {
 
     return {
       store: store,
-      itemId: itemId,
+      itemId: item.productId,
+      itemInternalName: item.itemInternalName,
       status: error.response?.status || 500,
       statusText: error.response?.statusText || "Error",
       error: error.message,
@@ -216,11 +261,11 @@ const checkItemAvailability = async (store, itemId) => {
 /**
  * Processes stores in batches to avoid overwhelming the API
  * @param {Array} stores - Array of store objects
- * @param {Array} itemIds - Array of item IDs to check
+ * @param {Array} items - Array of item objects with productId and itemInternalName
  * @param {number} batchSize - Number of stores to process at once
  * @returns {Promise<Array>} Array of all results
  */
-const processStoresInBatches = async (stores, itemIds, batchSize = 50) => {
+const processStoresInBatches = async (stores, items, batchSize = 50) => {
   const results = [];
   const errors = [];
 
@@ -235,8 +280,8 @@ const processStoresInBatches = async (stores, itemIds, batchSize = 50) => {
     // Create promises for all store-item combinations in this batch
     const batchPromises = [];
     batch.forEach((store) => {
-      itemIds.forEach((itemId) => {
-        batchPromises.push(checkItemAvailability(store, itemId));
+      items.forEach((item) => {
+        batchPromises.push(checkItemAvailability(store, item));
       });
     });
 
@@ -272,10 +317,25 @@ const performItemAvailabilityCheck = async (options = {}) => {
     console.log("Starting item availability check for multiple stores...");
 
     // Get configuration
-    const itemIds = options.itemIds || config.defaultItems;
+    let items;
+    if (options.itemIds) {
+      // If specific item IDs are provided, convert them to item objects
+      items = options.itemIds.split(",").map((id) => ({
+        productId: id.trim(),
+        itemInternalName: `item_${id.trim()}`,
+      }));
+    } else {
+      // Get items from CSV file
+      items = await getItemsToCheck();
+    }
+
     const batchSize = options.batchSize || config.batchSize;
 
-    console.log(`Checking availability for items: ${itemIds.join(", ")}`);
+    console.log(
+      `Checking availability for items: ${items
+        .map((item) => item.productId)
+        .join(", ")}`
+    );
 
     // Get the store data from the database
     const stores = await getStoreServiceabilityData();
@@ -287,7 +347,7 @@ const performItemAvailabilityCheck = async (options = {}) => {
     // Process stores in batches
     const { results, errors } = await processStoresInBatches(
       stores,
-      itemIds,
+      items,
       batchSize
     );
 
@@ -295,6 +355,7 @@ const performItemAvailabilityCheck = async (options = {}) => {
     const simplifiedResults = results.map((result) => ({
       storeId: result.availabilityData.storeId || result.store.storeId,
       itemId: result.itemId,
+      itemInternalName: result.itemInternalName,
       itemName: result.availabilityData.itemName,
       storeLocality: result.availabilityData.storeLocality,
       storeDescription: result.availabilityData.storeDescription,
@@ -341,17 +402,17 @@ const performItemAvailabilityCheck = async (options = {}) => {
 
     return {
       success: true,
-      message: `Completed item availability check for ${stores.length} stores and ${itemIds.length} items`,
+      message: `Completed item availability check for ${stores.length} stores and ${items.length} items`,
       timestamp: new Date().toISOString(),
       duration: `${duration} seconds`,
       summary: {
         totalStores: stores.length,
-        totalItems: itemIds.length,
-        totalChecks: stores.length * itemIds.length,
+        totalItems: items.length,
+        totalChecks: stores.length * items.length,
         successful: results.length,
         failed: errors.length,
         successRate: `${(
-          (results.length / (stores.length * itemIds.length)) *
+          (results.length / (stores.length * items.length)) *
           100
         ).toFixed(2)}%`,
       },

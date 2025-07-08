@@ -43,9 +43,9 @@ const { performItemAvailabilityCheck } = require("./itemAvailabilityCheck");
  * Function to initialize all cron jobs
  */
 const initCronJobs = () => {
-  // Schedule the store SLA check to run every 5 minutes
-  // The cron pattern '*/5 * * * *' means "every 5 minutes"
-  cron.schedule("*/5 * * * *", async () => {
+  // Schedule the store SLA check to run every 10 minutes
+  // The cron pattern '*/10 * * * *' means "every 10 minutes"
+  cron.schedule("*/10 * * * *", async () => {
     console.log("Running scheduled store SLA check");
     try {
       const result = await performStoreSlaCheck({
@@ -64,15 +64,14 @@ const initCronJobs = () => {
     }
   });
 
-  // Schedule the item availability check to run every 2 minutes
-  // The cron pattern '*/2 * * * *' means "every 2 minutes"
-  cron.schedule("*/2 * * * *", async () => {
+  // Schedule the item availability check to run every 20 minutes
+  // The cron pattern '*/20 * * * *' means "every 20 minutes"
+  cron.schedule("*/20 * * * *", async () => {
     console.log("Running scheduled item availability check");
     try {
       const result = await performItemAvailabilityCheck({
         source: "cron_job",
         scheduledTime: new Date().toISOString(),
-        itemIds: ["A8S21QP2A1", "RC72JAN6NK", "61WDNU5G4B"], // Example item IDs for testing
       });
 
       console.log(
@@ -92,8 +91,8 @@ const initCronJobs = () => {
   });
 
   console.log("Cron jobs have been scheduled:");
-  console.log("- Store SLA check: every 5 minutes");
-  console.log("- Item availability check: every 2 minutes");
+  console.log("- Store SLA check: every 10 minutes");
+  console.log("- Item availability check: every 20 minutes");
 };
 
 module.exports = {
