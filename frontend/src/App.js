@@ -113,8 +113,7 @@ function App() {
             </div>
           </Content>
           <Footer style={{ textAlign: "center" }}>
-            Lighthouse Dashboard ©{new Date().getFullYear()} Created with Ant
-            Design
+            Lighthouse Dashboard ©{new Date().getFullYear()}
           </Footer>
         </Layout>
       </Layout>
