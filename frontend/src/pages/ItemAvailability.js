@@ -58,9 +58,7 @@ const ItemAvailability = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        "http://localhost:5000/api/item-availability"
-      );
+      const response = await fetch("/api/item-availability");
 
       if (!response.ok) {
         throw new Error("Failed to fetch data");
